@@ -1,43 +1,113 @@
+using System.Collections;
+using System.Collections.Generic;
 using UnityEngine;
-using UnityEngine.UI;
+using TMPro;
 
 public class move : MonoBehaviour
 {
-    [SerializeField] CharacterController controller;
-    [SerializeField] float speed;
-    [SerializeField] float gravity = 50;
-    [SerializeField] float jumpForce = 30;
+    [SerializeField] float movementSpeed = 5f;
+    public static move instance;
+    float currentSpeed;
+
+    [SerializeField] Rigidbody rb;
     Vector3 direction;
+
+    [SerializeField] float shiftSpeed = 10f;
+    [SerializeField] float jumpForce = 7f;
+    [SerializeField] float stamina = 5f;
+    [SerializeField] TMP_Text HpText;
+    [SerializeField] GameObject bullet;
+    [SerializeField] GameObject rifleStart;
+
+    bool isGrounded = true;
+
+    [SerializeField] Animator anim;
+
+    private void Awake()
+    {
+        instance = this;
+    }
+    void Start()
+    {
+        rb = GetComponent<Rigidbody>();
+        anim = GetComponent<Animator>();
+        currentSpeed = movementSpeed;
+        ChangeHealth(100);
+    }
 
     void Update()
     {
-        // moveHorizontal будет принимать значение -1 если нажата кнопка A, 1 если нажата D, 0 если эти кнопки не нажаты
         float moveHorizontal = Input.GetAxis("Horizontal");
-        // moveVertical будет принимать значение -1 если нажата кнопка S, 1 если нажата W, 0 если эти кнопки не нажаты
         float moveVertical = Input.GetAxis("Vertical");
-        if (controller.isGrounded) //провер€ем что мы не на земле (тема условий будет дальше)
+
+        direction = new Vector3(moveHorizontal, 0.0f, moveVertical);
+        direction = transform.TransformDirection(direction);
+        if (direction.x != 0 || direction.z != 0)
         {
-            //–едактируем переменную направлени€, использу€ moveHorizontal и moveVertical
-            //ћы двигаемс€ по координатам x и z, координата y дл€ прыжков.
-            direction = new Vector3(moveHorizontal, 0, moveVertical);
-            //ƒополнительно умножа€ его на скорость передвижени€ (преобразу€ локальные координаты к глобальным)
-            direction = transform.TransformDirection(direction) * speed;
-            if (Input.GetKey(KeyCode.Space)) //ѕровер€ем что нажали пробел дл€ прыжка
+            anim.SetBool("Run", true);
+        }
+        if (direction.x == 0 && direction.z == 0)
+        {
+            anim.SetBool("Run", false);
+        }
+        if (Input.GetKeyDown(KeyCode.Space) && isGrounded)
+        {
+            rb.AddForce(new Vector3(0, jumpForce, 0), ForceMode.Impulse);
+            isGrounded = false;
+            anim.SetBool("Jump", true);
+        }
+        if (Input.GetKey(KeyCode.LeftShift))
+        {
+            if (stamina > 0)
             {
-                direction.y = jumpForce;
+                stamina -= Time.deltaTime;
+                currentSpeed = shiftSpeed;
+                anim.SetBool("Sprint", true);
+            }
+            else
+            {
+                currentSpeed = movementSpeed;
+                anim.SetBool("Sprint", false);
             }
         }
-        //Ётой строчкой мы осуществл€ем изменение положени€ игрока на основе вектора direction
-        //Time.deltaTime это количество секунд которое прошло с последнего кадра, дл€ синхронизации по времени
-        direction.y -= gravity * Time.deltaTime;
-        controller.Move(direction * Time.deltaTime);
-        if (Input.GetKeyDown(KeyCode.LeftShift))
+        else if (!Input.GetKey(KeyCode.LeftShift))
         {
-            speed = speed + 5;
+            stamina += Time.deltaTime;
+            currentSpeed = movementSpeed;
         }
-        if (Input.GetKeyUp(KeyCode.LeftShift))
+        if (stamina > 5)
         {
-            speed = speed - 5;
+            stamina = 5;
         }
+        else if (stamina < 0)
+        {
+            stamina = 0;
+        }
+
+        print(stamina);
+        if (Input.GetKeyDown(KeyCode.Mouse0))
+        {
+            GameObject buffer = Instantiate(bullet);
+            buffer.GetComponent<Bullet>().SetDirection(transform.forward);
+            buffer.transform.position = rifleStart.transform.position;
+            buffer.transform.rotation = transform.rotation;
+        }
+    }
+
+
+    void FixedUpdate()
+    {
+        rb.MovePosition(transform.position + direction * currentSpeed * Time.deltaTime);
+    }
+    void OnCollisionEnter(Collision collision)
+    {
+        isGrounded = true;
+        anim.SetBool("Jump", false);
+    }
+    private int health;
+    public void ChangeHealth(int count)
+    {
+        health = health + count;
+        HpText.text = health.ToString();
     }
 }
